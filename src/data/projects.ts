@@ -1,6 +1,6 @@
-import { Project } from '@/types/project';
+import { Project, Note, FollowUp } from '@/types/project';
 
-export const projects: Project[] = [
+export let projects: Project[] = [
   {
     id: 'proj-1',
     projectName: 'Sukhada Wellness Portal',
@@ -529,6 +529,8 @@ export const projects: Project[] = [
   },
 ];
 
+let projectCounter = projects.length;
+
 export const getProjectById = (id: string): Project | undefined => {
   return projects.find((project) => project.id === id);
 };
@@ -537,4 +539,52 @@ export const getProjectsByDeveloper = (developerId: string): Project[] => {
   return projects.filter((project) => 
     project.developersAssigned.includes(developerId)
   );
+};
+
+export const addProject = (projectData: Omit<Project, 'id'>): Project => {
+  projectCounter++;
+  const newProject: Project = {
+    ...projectData,
+    id: `proj-${projectCounter}`,
+  };
+  projects = [...projects, newProject];
+  return newProject;
+};
+
+export const updateProject = (id: string, updates: Partial<Project>): Project | null => {
+  const index = projects.findIndex((p) => p.id === id);
+  if (index === -1) return null;
+  
+  projects[index] = { ...projects[index], ...updates };
+  return projects[index];
+};
+
+export const deleteProject = (id: string): boolean => {
+  const originalLength = projects.length;
+  projects = projects.filter((p) => p.id !== id);
+  return projects.length < originalLength;
+};
+
+export const addNoteToProject = (projectId: string, note: Omit<Note, 'id'>): Note | null => {
+  const project = getProjectById(projectId);
+  if (!project) return null;
+  
+  const newNote: Note = {
+    ...note,
+    id: `n-${Date.now()}`,
+  };
+  project.notes = [newNote, ...project.notes];
+  return newNote;
+};
+
+export const addFollowUpToProject = (projectId: string, followUp: Omit<FollowUp, 'id'>): FollowUp | null => {
+  const project = getProjectById(projectId);
+  if (!project) return null;
+  
+  const newFollowUp: FollowUp = {
+    ...followUp,
+    id: `f-${Date.now()}`,
+  };
+  project.followUpHistory = [newFollowUp, ...project.followUpHistory];
+  return newFollowUp;
 };

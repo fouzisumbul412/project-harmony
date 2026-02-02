@@ -9,6 +9,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  History,
+  UserPlus,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -17,17 +19,23 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
-  const { user, logout, canEditProjects } = useAuth();
+  const { user, logout, canAddProjects, canManageUsers, canViewAuditHistory } = useAuth();
   const location = useLocation();
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/projects', label: 'Projects', icon: FolderKanban },
-    ...(canEditProjects
+    ...(canAddProjects
       ? [{ path: '/projects/new', label: 'Add Project', icon: Plus }]
       : []),
     ...(user?.role === 'Admin'
       ? [{ path: '/developers', label: 'Developers', icon: Users }]
+      : []),
+    ...(canManageUsers
+      ? [{ path: '/users', label: 'User Management', icon: UserPlus }]
+      : []),
+    ...(canViewAuditHistory
+      ? [{ path: '/audit-history', label: 'Audit History', icon: History }]
       : []),
   ];
 

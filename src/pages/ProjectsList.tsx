@@ -16,7 +16,7 @@ import { Project, ProjectStatus, PendingFrom, PaymentStatus, Priority, RiskLevel
 import { Plus, Filter, X, Eye } from 'lucide-react';
 
 const ProjectsList: React.FC = () => {
-  const { user, canViewPayments, canViewAllProjects, canEditProjects } = useAuth();
+  const { user, canViewPayments, canViewAllProjects, canAddProjects } = useAuth();
   const navigate = useNavigate();
 
   // Filter states
@@ -90,7 +90,7 @@ const ProjectsList: React.FC = () => {
               </button>
             )}
           </div>
-          {canEditProjects && (
+          {canAddProjects && (
             <button onClick={() => navigate('/projects/new')} className="btn-primary">
               <Plus className="w-4 h-4" /> Add Project
             </button>

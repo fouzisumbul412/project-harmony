@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { useAuth } from '@/context/AuthContext';
-import { getProjectById, projects } from '@/data/projects';
+import { getProjectById, addProject, updateProject } from '@/data/projects';
 import { developers } from '@/data/developers';
+import { addAuditLog } from '@/data/auditLogs';
 import {
   Project,
   ProjectStatus,
@@ -18,7 +19,7 @@ import { ArrowLeft, Save, Plus, Trash } from 'lucide-react';
 const ProjectForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEditProjects, canViewPayments } = useAuth();
+  const { user, canEditProjects, canAddProjects, canViewPayments } = useAuth();
   const isEdit = Boolean(id);
   const existingProject = id ? getProjectById(id) : undefined;
 
@@ -73,7 +74,10 @@ const ProjectForm: React.FC = () => {
     }
   }, [existingProject]);
 
-  if (!canEditProjects) {
+  // For edit, only admin can edit. For create, dev/freelancer/admin can create
+  const canPerformAction = isEdit ? canEditProjects : canAddProjects;
+
+  if (!canPerformAction) {
     navigate('/projects');
     return null;
   }
@@ -122,8 +126,60 @@ const ProjectForm: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would save to a database
-    console.log('Saving project:', formData);
+    
+    const filteredLinks = formData.importantLinks.filter((link) => link.label && link.url);
+    
+    if (isEdit && existingProject) {
+      // Update existing project
+      const updatedProject = updateProject(existingProject.id, {
+        ...formData,
+        actualCompletion: formData.actualCompletion || null,
+        liveDate: formData.liveDate || null,
+        warrantyEndDate: formData.warrantyEndDate || null,
+        importantLinks: filteredLinks,
+      });
+
+      if (updatedProject) {
+        // Create audit log for update
+        addAuditLog({
+          action: 'updated',
+          entity: 'project',
+          entityId: updatedProject.id,
+          entityName: updatedProject.projectName,
+          changes: [
+            { field: 'projectStatus', oldValue: existingProject.projectStatus, newValue: updatedProject.projectStatus },
+            { field: 'currentStage', oldValue: existingProject.currentStage, newValue: updatedProject.currentStage },
+            { field: 'pendingFrom', oldValue: existingProject.pendingFrom, newValue: updatedProject.pendingFrom },
+          ],
+          performedBy: { id: user!.id, name: user!.name, role: user!.role },
+          timestamp: new Date().toISOString(),
+          description: `Updated project "${updatedProject.projectName}"`,
+        });
+      }
+    } else {
+      // Create new project
+      const newProject = addProject({
+        ...formData,
+        actualCompletion: formData.actualCompletion || null,
+        liveDate: formData.liveDate || null,
+        warrantyEndDate: formData.warrantyEndDate || null,
+        importantLinks: filteredLinks,
+        notes: [],
+        followUpHistory: [],
+      });
+
+      // Create audit log for creation
+      addAuditLog({
+        action: 'created',
+        entity: 'project',
+        entityId: newProject.id,
+        entityName: newProject.projectName,
+        performedBy: { id: user!.id, name: user!.name, role: user!.role },
+        timestamp: new Date().toISOString(),
+        description: `Created project "${newProject.projectName}"`,
+      });
+    }
+
     navigate('/projects');
   };
 

@@ -11,6 +11,8 @@ import ProjectsList from "@/pages/ProjectsList";
 import ProjectDetail from "@/pages/ProjectDetail";
 import ProjectForm from "@/pages/ProjectForm";
 import DevelopersPage from "@/pages/DevelopersPage";
+import UsersPage from "@/pages/UsersPage";
+import AuditHistoryPage from "@/pages/AuditHistoryPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +23,21 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
+// Admin Only Route
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, user } = useAuth();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (user?.role !== 'Admin') {
+    return <Navigate to="/dashboard" replace />;
   }
   
   return <>{children}</>;
@@ -64,6 +81,22 @@ const AppRoutes = () => {
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/projects/:id/edit" element={<ProjectForm />} />
         <Route path="/developers" element={<DevelopersPage />} />
+        <Route
+          path="/users"
+          element={
+            <AdminRoute>
+              <UsersPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/audit-history"
+          element={
+            <AdminRoute>
+              <AuditHistoryPage />
+            </AdminRoute>
+          }
+        />
       </Route>
       
       {/* Redirects */}

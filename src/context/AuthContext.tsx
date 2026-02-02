@@ -10,6 +10,9 @@ interface AuthContextType {
   canEditProjects: boolean;
   canViewAllProjects: boolean;
   canEditDevelopmentData: boolean;
+  canAddProjects: boolean;
+  canManageUsers: boolean;
+  canViewAuditHistory: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,14 +33,14 @@ const mockUsers: Record<UserRole, User> = {
     developerId: 'dev-1',
   },
   Freelancer: {
-    id: 'user-3',
+    id: 'user-5',
     name: 'Sneha Reddy',
     email: 'sneha.freelance@gmail.com',
     role: 'Freelancer',
     developerId: 'dev-4',
   },
   Accounts: {
-    id: 'user-4',
+    id: 'user-8',
     name: 'Accounts Team',
     email: 'accounts@outrightcreators.com',
     role: 'Accounts',
@@ -62,6 +65,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const canEditProjects = user?.role === 'Admin';
   const canViewAllProjects = user?.role === 'Admin' || user?.role === 'Accounts';
   const canEditDevelopmentData = user?.role !== 'Accounts';
+  
+  // New permissions: Developer and Freelancer can add projects
+  const canAddProjects = user?.role === 'Admin' || user?.role === 'Developer' || user?.role === 'Freelancer';
+  const canManageUsers = user?.role === 'Admin';
+  const canViewAuditHistory = user?.role === 'Admin';
 
   return (
     <AuthContext.Provider
@@ -74,6 +82,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         canEditProjects,
         canViewAllProjects,
         canEditDevelopmentData,
+        canAddProjects,
+        canManageUsers,
+        canViewAuditHistory,
       }}
     >
       {children}
