@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import Modal from '@/components/common/Modal';
 import { useAuth } from '@/context/AuthContext';
-import { getProjectById } from '@/data/projects';
+import { getProjectById, addNoteToProject, addFollowUpToProject } from '@/data/projects';
 import { getDevelopersByIds } from '@/data/developers';
+import { addAuditLog } from '@/data/auditLogs';
 import {
   getProjectStatusBadge,
   getPendingFromBadge,
@@ -33,11 +34,12 @@ import {
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canViewPayments, canEditProjects, canEditDevelopmentData } = useAuth();
+  const { user, canViewPayments, canEditProjects, canEditDevelopmentData } = useAuth();
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [newFollowUp, setNewFollowUp] = useState('');
+  const [, forceUpdate] = useState({});
 
   const project = id ? getProjectById(id) : undefined;
 
@@ -361,7 +363,32 @@ const ProjectDetail: React.FC = () => {
             <button onClick={() => setShowNoteModal(false)} className="btn-ghost">
               Cancel
             </button>
-            <button onClick={() => setShowNoteModal(false)} className="btn-primary">
+            <button
+              onClick={() => {
+                if (newNote.trim() && project) {
+                  const note = addNoteToProject(project.id, {
+                    date: new Date().toISOString().split('T')[0],
+                    content: newNote.trim(),
+                    by: user!.name,
+                  });
+                  if (note) {
+                    addAuditLog({
+                      action: 'created',
+                      entity: 'note',
+                      entityId: note.id,
+                      entityName: project.projectName,
+                      performedBy: { id: user!.id, name: user!.name, role: user!.role },
+                      timestamp: new Date().toISOString(),
+                      description: `Added note: "${newNote.trim().substring(0, 50)}${newNote.length > 50 ? '...' : ''}"`,
+                    });
+                    forceUpdate({});
+                  }
+                }
+                setNewNote('');
+                setShowNoteModal(false);
+              }}
+              className="btn-primary"
+            >
               Save Note
             </button>
           </div>
@@ -381,7 +408,32 @@ const ProjectDetail: React.FC = () => {
             <button onClick={() => setShowFollowUpModal(false)} className="btn-ghost">
               Cancel
             </button>
-            <button onClick={() => setShowFollowUpModal(false)} className="btn-primary">
+            <button
+              onClick={() => {
+                if (newFollowUp.trim() && project) {
+                  const followUp = addFollowUpToProject(project.id, {
+                    date: new Date().toISOString().split('T')[0],
+                    note: newFollowUp.trim(),
+                    by: user!.name,
+                  });
+                  if (followUp) {
+                    addAuditLog({
+                      action: 'created',
+                      entity: 'follow_up',
+                      entityId: followUp.id,
+                      entityName: project.projectName,
+                      performedBy: { id: user!.id, name: user!.name, role: user!.role },
+                      timestamp: new Date().toISOString(),
+                      description: `Added follow-up: "${newFollowUp.trim().substring(0, 50)}${newFollowUp.length > 50 ? '...' : ''}"`,
+                    });
+                    forceUpdate({});
+                  }
+                }
+                setNewFollowUp('');
+                setShowFollowUpModal(false);
+              }}
+              className="btn-primary"
+            >
               Save Follow-up
             </button>
           </div>
