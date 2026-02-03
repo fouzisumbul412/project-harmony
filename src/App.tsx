@@ -13,6 +13,7 @@ import ProjectForm from "@/pages/ProjectForm";
 import DevelopersPage from "@/pages/DevelopersPage";
 import UsersPage from "@/pages/UsersPage";
 import AuditHistoryPage from "@/pages/AuditHistoryPage";
+import KanbanPage from "@/pages/KanbanPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -77,6 +78,7 @@ const AppRoutes = () => {
       >
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/projects" element={<ProjectsList />} />
+        <Route path="/kanban" element={<KanbanPage />} />
         <Route path="/projects/new" element={<ProjectForm />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/projects/:id/edit" element={<ProjectForm />} />
