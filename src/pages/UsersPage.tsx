@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+// File: C:\xampp\htdocs\project-crm\react-project-crm\src\pages\UsersPage.tsx
+
+import React, { useEffect, useState } from 'react';
 import Header from '@/components/layout/Header';
 import { useAuth } from '@/context/AuthContext';
-import { managedUsers, addUser, updateUser, deleteUser } from '@/data/users';
-import { developers } from '@/data/developers';
 import { addAuditLog } from '@/data/auditLogs';
 import { ManagedUser } from '@/types/user';
 import { UserRole } from '@/types/project';
@@ -16,11 +16,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  UserCheck, 
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  UserCheck,
   UserX,
   Users,
   Code,
@@ -28,20 +28,118 @@ import {
   Calculator,
 } from 'lucide-react';
 
+const API_BASE = 'http://localhost/project-crm/api/users';
+
+type ManagedUserWithDevFields = ManagedUser & {
+  phone?: string | null;
+  githubUrl?: string | null;
+};
+
 const UsersPage: React.FC = () => {
   const { user } = useAuth();
-  const [users, setUsers] = useState<ManagedUser[]>(managedUsers);
+  const [users, setUsers] = useState<ManagedUserWithDevFields[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [editingUser, setEditingUser] = useState<ManagedUserWithDevFields | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Form state
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: 'Developer' as UserRole,
-    developerId: '',
+    password: '',
+    phone: '',
+    githubUrl: '',
   });
+
+  const isDevRole = formData.role === 'Developer' || formData.role === 'Freelancer';
+
+  /* ---------------- API HELPERS ---------------- */
+
+  const fetchUsers = async () => {
+    const res = await fetch(`${API_BASE}/index.php`, {
+      credentials: 'include',
+    });
+    const data = await res.json();
+    setUsers(Array.isArray(data) ? data : []);
+  };
+
+  const createUser = async () => {
+    const payload: any = {
+      name: formData.name,
+      email: formData.email,
+      role: formData.role,
+      password: formData.password,
+    };
+
+    // ✅ Dev/Freelancer extra fields
+    if (isDevRole) {
+      payload.phone = formData.phone;
+      payload.githubUrl = formData.githubUrl;
+    } else {
+      payload.phone = null;
+      payload.githubUrl = null;
+    }
+
+    await fetch(`${API_BASE}/create.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+  };
+
+  const updateUser = async (id: string) => {
+    const payload: any = {
+      id,
+      name: formData.name,
+      email: formData.email,
+      role: formData.role,
+      password: formData.password || undefined,
+    };
+
+    // ✅ Dev/Freelancer extra fields
+    if (isDevRole) {
+      payload.phone = formData.phone;
+      payload.githubUrl = formData.githubUrl;
+    } else {
+      payload.phone = null;
+      payload.githubUrl = null;
+    }
+
+    await fetch(`${API_BASE}/update.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+  };
+
+  const deleteUser = async (id: string) => {
+    await fetch(`${API_BASE}/delete.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id }),
+    });
+  };
+
+  const toggleStatus = async (id: string, status: boolean) => {
+    await fetch(`${API_BASE}/status.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id, status: status ? 1 : 0 }),
+    });
+  };
+
+  /* ---------------- EFFECT ---------------- */
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  /* ---------------- UI HELPERS ---------------- */
 
   const roleIcons: Record<UserRole, React.ReactNode> = {
     Admin: <Users className="w-4 h-4" />,
@@ -50,7 +148,7 @@ const UsersPage: React.FC = () => {
     Accounts: <Calculator className="w-4 h-4" />,
   };
 
-  const getRoleBadgeClass = (role: UserRole): string => {
+  const getRoleBadgeClass = (role: UserRole) => {
     switch (role) {
       case 'Admin':
         return 'badge-purple';
@@ -65,137 +163,101 @@ const UsersPage: React.FC = () => {
     }
   };
 
+  /* ---------------- HANDLERS ---------------- */
+
   const openCreateDialog = () => {
     setEditingUser(null);
-    setFormData({ name: '', email: '', role: 'Developer', developerId: '' });
-    setIsDialogOpen(true);
-  };
-
-  const openEditDialog = (u: ManagedUser) => {
-    setEditingUser(u);
+    setShowPassword(false);
     setFormData({
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      developerId: u.developerId || '',
+      name: '',
+      email: '',
+      role: 'Developer',
+      password: '',
+      phone: '',
+      githubUrl: '',
     });
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = () => {
+  const openEditDialog = (u: ManagedUserWithDevFields) => {
+    setEditingUser(u);
+    setShowPassword(false);
+    setFormData({
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      password: '',
+      phone: (u.phone as string) || '',
+      githubUrl: (u.githubUrl as string) || '',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = async () => {
     if (!formData.name || !formData.email) return;
 
-    if (editingUser) {
-      // Update existing user
-      const updated = updateUser(editingUser.id, {
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-        developerId: formData.role === 'Developer' || formData.role === 'Freelancer' 
-          ? formData.developerId 
-          : undefined,
-      });
+    if (!editingUser && !formData.password) {
+      alert('Password is required');
+      return;
+    }
 
-      if (updated) {
-        addAuditLog({
-          action: 'updated',
-          entity: 'user',
-          entityId: updated.id,
-          entityName: updated.name,
-          changes: [
-            { field: 'name', oldValue: editingUser.name, newValue: updated.name },
-            { field: 'email', oldValue: editingUser.email, newValue: updated.email },
-            { field: 'role', oldValue: editingUser.role, newValue: updated.role },
-          ],
-          performedBy: { id: user!.id, name: user!.name, role: user!.role },
-          timestamp: new Date().toISOString(),
-          description: `Updated user "${updated.name}"`,
-        });
-        setUsers([...managedUsers]);
+    if (isDevRole) {
+      if (!formData.phone.trim()) {
+        alert('Phone is required for Developer/Freelancer');
+        return;
       }
-    } else {
-      // Create new user
-      const newUser = addUser({
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-        developerId: formData.role === 'Developer' || formData.role === 'Freelancer' 
-          ? formData.developerId 
-          : undefined,
-        createdAt: new Date().toISOString(),
-        createdBy: user!.name,
-        isActive: true,
-      });
+      if (!formData.githubUrl.trim()) {
+        alert('GitHub profile link is required for Developer/Freelancer');
+        return;
+      }
+    }
 
-      addAuditLog({
-        action: 'created',
-        entity: 'user',
-        entityId: newUser.id,
-        entityName: newUser.name,
-        performedBy: { id: user!.id, name: user!.name, role: user!.role },
-        timestamp: new Date().toISOString(),
-        description: `Created user "${newUser.name}" with role ${newUser.role}`,
-      });
-      setUsers([...managedUsers]);
+    if (editingUser) {
+      await updateUser(editingUser.id);
+    } else {
+      await createUser();
     }
 
     setIsDialogOpen(false);
+    fetchUsers();
   };
 
-  const handleDelete = (userId: string) => {
-    const userToDelete = users.find((u) => u.id === userId);
-    if (!userToDelete) return;
-
-    const success = deleteUser(userId);
-    if (success) {
-      addAuditLog({
-        action: 'deleted',
-        entity: 'user',
-        entityId: userId,
-        entityName: userToDelete.name,
-        performedBy: { id: user!.id, name: user!.name, role: user!.role },
-        timestamp: new Date().toISOString(),
-        description: `Deleted user "${userToDelete.name}"`,
-      });
-      setUsers([...managedUsers]);
-    }
+  const handleDelete = async (id: string) => {
+    await deleteUser(id);
+    addAuditLog({
+      action: 'deleted',
+      entity: 'user',
+      entityId: id,
+      entityName: 'User',
+      performedBy: { id: user!.id, name: user!.name, role: user!.role },
+      timestamp: new Date().toISOString(),
+      description: 'Deleted user',
+    });
     setDeleteConfirm(null);
+    fetchUsers();
   };
 
-  const toggleUserStatus = (userId: string) => {
-    const targetUser = users.find((u) => u.id === userId);
-    if (!targetUser) return;
-
-    const updated = updateUser(userId, { isActive: !targetUser.isActive });
-    if (updated) {
-      addAuditLog({
-        action: 'updated',
-        entity: 'user',
-        entityId: updated.id,
-        entityName: updated.name,
-        changes: [{ field: 'isActive', oldValue: targetUser.isActive, newValue: updated.isActive }],
-        performedBy: { id: user!.id, name: user!.name, role: user!.role },
-        timestamp: new Date().toISOString(),
-        description: `${updated.isActive ? 'Activated' : 'Deactivated'} user "${updated.name}"`,
-      });
-      setUsers([...managedUsers]);
-    }
+  const handleToggleStatus = async (u: ManagedUserWithDevFields) => {
+    await toggleStatus(u.id, !u.isActive);
+    addAuditLog({
+      action: 'updated',
+      entity: 'user',
+      entityId: u.id,
+      entityName: u.name,
+      performedBy: { id: user!.id, name: user!.name, role: user!.role },
+      timestamp: new Date().toISOString(),
+      description: `${u.isActive ? 'Deactivated' : 'Activated'} user "${u.name}"`,
+    });
+    fetchUsers();
   };
 
-  // Get unassigned developers for linking
-  const getAvailableDevelopers = () => {
-    const assignedDevIds = users
-      .filter((u) => u.developerId && u.id !== editingUser?.id)
-      .map((u) => u.developerId);
-    return developers.filter((d) => !assignedDevIds.includes(d.id));
-  };
+  /* ---------------- JSX ---------------- */
 
   return (
     <div className="min-h-screen">
       <Header title="User Management" subtitle={`${users.length} users`} />
 
       <div className="p-6">
-        {/* Action Bar */}
         <div className="flex items-center justify-between mb-6">
           <p className="text-muted-foreground text-sm">
             Manage user accounts and their roles
@@ -205,7 +267,6 @@ const UsersPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Users Table */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="data-table">
@@ -214,7 +275,6 @@ const UsersPage: React.FC = () => {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
-                  <th>Developer Profile</th>
                   <th>Status</th>
                   <th>Created</th>
                   <th>Created By</th>
@@ -223,24 +283,26 @@ const UsersPage: React.FC = () => {
               </thead>
               <tbody>
                 {users.map((u) => {
-                  const linkedDev = u.developerId 
-                    ? developers.find((d) => d.id === u.developerId) 
-                    : null;
                   return (
                     <tr key={u.id}>
-                      <td className="font-medium text-foreground">{u.name}</td>
+                      <td className="font-medium">{u.name}</td>
                       <td className="text-muted-foreground">{u.email}</td>
                       <td>
-                        <span className={`badge ${getRoleBadgeClass(u.role)} inline-flex items-center gap-1`}>
+                        <span
+                          className={`badge ${getRoleBadgeClass(
+                            u.role
+                          )} inline-flex gap-1`}
+                        >
                           {roleIcons[u.role]}
                           {u.role}
                         </span>
                       </td>
-                      <td className="text-muted-foreground text-sm">
-                        {linkedDev ? linkedDev.name : '-'}
-                      </td>
                       <td>
-                        <span className={`badge ${u.isActive ? 'badge-green' : 'badge-gray'}`}>
+                        <span
+                          className={`badge ${
+                            u.isActive ? 'badge-green' : 'badge-gray'
+                          }`}
+                        >
                           {u.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
@@ -249,18 +311,16 @@ const UsersPage: React.FC = () => {
                       </td>
                       <td className="text-muted-foreground text-sm">{u.createdBy}</td>
                       <td>
-                        <div className="flex items-center gap-1">
+                        <div className="flex gap-1">
                           <button
                             onClick={() => openEditDialog(u)}
                             className="btn-ghost p-2"
-                            title="Edit"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleUserStatus(u.id)}
+                            onClick={() => handleToggleStatus(u)}
                             className="btn-ghost p-2"
-                            title={u.isActive ? 'Deactivate' : 'Activate'}
                           >
                             {u.isActive ? (
                               <UserX className="w-4 h-4 text-orange-500" />
@@ -272,7 +332,6 @@ const UsersPage: React.FC = () => {
                             <button
                               onClick={() => setDeleteConfirm(u.id)}
                               className="btn-ghost p-2 text-destructive"
-                              title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -292,34 +351,87 @@ const UsersPage: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingUser ? 'Edit User' : 'Create New User'}</DialogTitle>
+            <DialogTitle>
+              {editingUser ? 'Edit User' : 'Create New User'}
+            </DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 placeholder="Enter full name"
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 placeholder="Enter email address"
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">
+                {editingUser ? 'New Password (optional)' : 'Password'}
+              </Label>
+
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
+                  placeholder={
+                    editingUser
+                      ? 'Leave blank to keep existing password'
+                      : 'Enter password'
+                  }
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                >
+                  {showPassword ? '👁' : '🫣'}
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <select
                 id="role"
                 value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                onChange={(e) => {
+                  const nextRole = e.target.value as UserRole;
+
+                  // switching away from dev roles clears dev-only fields
+                  if (nextRole !== 'Developer' && nextRole !== 'Freelancer') {
+                    setFormData({
+                      ...formData,
+                      role: nextRole,
+                      phone: '',
+                      githubUrl: '',
+                    });
+                  } else {
+                    setFormData({ ...formData, role: nextRole });
+                  }
+                }}
                 className="form-select w-full"
               >
                 <option value="Admin">Admin</option>
@@ -328,30 +440,37 @@ const UsersPage: React.FC = () => {
                 <option value="Accounts">Accounts</option>
               </select>
             </div>
+
+            {/* ✅ Developer/Freelancer fields ONLY (no linked profile, no linkedin) */}
             {(formData.role === 'Developer' || formData.role === 'Freelancer') && (
-              <div className="space-y-2">
-                <Label htmlFor="developerId">Link to Developer Profile</Label>
-                <select
-                  id="developerId"
-                  value={formData.developerId}
-                  onChange={(e) => setFormData({ ...formData, developerId: e.target.value })}
-                  className="form-select w-full"
-                >
-                  <option value="">No linked profile</option>
-                  {getAvailableDevelopers().map((dev) => (
-                    <option key={dev.id} value={dev.id}>
-                      {dev.name} ({dev.type})
-                    </option>
-                  ))}
-                  {editingUser?.developerId && (
-                    <option value={editingUser.developerId}>
-                      {developers.find((d) => d.id === editingUser.developerId)?.name} (current)
-                    </option>
-                  )}
-                </select>
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="githubUrl">GitHub Profile Link</Label>
+                  <Input
+                    id="githubUrl"
+                    value={formData.githubUrl}
+                    onChange={(e) =>
+                      setFormData({ ...formData, githubUrl: e.target.value })
+                    }
+                    placeholder="https://github.com/username"
+                  />
+                </div>
+              </>
             )}
           </div>
+
           <DialogFooter>
             <button onClick={() => setIsDialogOpen(false)} className="btn-ghost">
               Cancel

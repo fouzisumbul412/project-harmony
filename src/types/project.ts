@@ -39,6 +39,7 @@ export interface Developer {
   type: DeveloperType;
   email: string;
   phone: string;
+  githubUrl?: string;
 }
 
 export interface FollowUp {

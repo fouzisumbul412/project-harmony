@@ -21,20 +21,20 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
       <div className="flex items-center gap-4">
         {/* Search */}
-        <div className="relative hidden md:block">
+        {/* <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search projects..."
             className="form-input pl-10 w-64"
           />
-        </div>
+        </div> */}
 
         {/* Notifications */}
-        <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
+        {/* <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
           <Bell className="w-5 h-5 text-muted-foreground" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full" />
-        </button>
+        </button> */}
 
         {/* User Avatar */}
         <div className="flex items-center gap-3">

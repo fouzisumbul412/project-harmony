@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+// react-project-crm\src\pages\ProjectDetail.tsx
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import Modal from '@/components/common/Modal';
 import { useAuth } from '@/context/AuthContext';
-import { getProjectById, addNoteToProject, addFollowUpToProject } from '@/data/projects';
-import { getDevelopersByIds } from '@/data/developers';
-import { addAuditLog } from '@/data/auditLogs';
 import {
   getProjectStatusBadge,
   getPendingFromBadge,
@@ -31,17 +29,69 @@ import {
   Plus,
 } from 'lucide-react';
 
+const API = 'http://localhost/project-crm/api/projects';
+
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, canViewPayments, canEditProjects, canEditDevelopmentData } = useAuth();
+
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [newFollowUp, setNewFollowUp] = useState('');
-  const [, forceUpdate] = useState({});
 
-  const project = id ? getProjectById(id) : undefined;
+  const [project, setProject] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadProject = () => {
+    if (!id) return;
+
+    setLoading(true);
+
+    fetch(`${API}/view.php?id=${encodeURIComponent(id)}`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data) {
+          setProject(null);
+          setLoading(false);
+          return;
+        }
+
+        const normalized = {
+          ...data,
+          id: String(data.id),
+          developersAssigned: Array.isArray(data.developersAssigned) ? data.developersAssigned : [],
+          importantLinks: Array.isArray(data.importantLinks) ? data.importantLinks : [],
+          notes: Array.isArray(data.notes) ? data.notes : [],
+          followUpHistory: Array.isArray(data.followUpHistory) ? data.followUpHistory : [],
+        };
+
+        setProject(normalized);
+        setLoading(false);
+      })
+      .catch(() => {
+        setProject(null);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    loadProject();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground mb-2">Loading...</h1>
+          <button onClick={() => navigate('/projects')} className="btn-primary">
+            Back to Projects
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!project) {
     return (
@@ -56,7 +106,14 @@ const ProjectDetail: React.FC = () => {
     );
   }
 
-  const developers = getDevelopersByIds(project.developersAssigned);
+  const developers =
+    Array.isArray(project.developersAssigned) && project.developersAssigned.length > 0
+      ? project.developersAssigned.map((devId: any) => ({
+          id: String(devId),
+          name: String(devId),
+          type: 'Developer',
+        }))
+      : [];
 
   const SectionCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -164,12 +221,10 @@ const ProjectDetail: React.FC = () => {
           <SectionCard title="Developers Assigned">
             {developers.length > 0 ? (
               <div className="space-y-3">
-                {developers.map((dev) => (
+                {developers.map((dev: any) => (
                   <div key={dev.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                      <span className="text-primary-foreground font-medium">
-                        {dev.name.charAt(0)}
-                      </span>
+                      <span className="text-primary-foreground font-medium">{dev.name.charAt(0)}</span>
                     </div>
                     <div>
                       <p className="font-medium text-foreground">{dev.name}</p>
@@ -237,9 +292,7 @@ const ProjectDetail: React.FC = () => {
                 }
               />
               <InfoRow label="AMC Status" value={project.amcStatus ? 'Active' : 'No'} />
-              {project.amcStatus && (
-                <InfoRow label="AMC Amount" value={formatCurrency(project.amcAmount)} />
-              )}
+              {project.amcStatus && <InfoRow label="AMC Amount" value={formatCurrency(project.amcAmount)} />}
               <InfoRow label="Scope Changes" value={project.scopeChanges || 'None'} />
             </SectionCard>
           )}
@@ -272,7 +325,7 @@ const ProjectDetail: React.FC = () => {
           <SectionCard title="Important Links">
             {project.importantLinks.length > 0 ? (
               <div className="space-y-2">
-                {project.importantLinks.map((link, index) => (
+                {project.importantLinks.map((link: any, index: number) => (
                   <a
                     key={index}
                     href={link.url}
@@ -301,7 +354,7 @@ const ProjectDetail: React.FC = () => {
             </div>
             {project.notes.length > 0 ? (
               <div className="space-y-4">
-                {project.notes.map((note) => (
+                {project.notes.map((note: any) => (
                   <div key={note.id} className="timeline-item">
                     <div className="timeline-dot" />
                     <div className="pl-2">
@@ -330,7 +383,7 @@ const ProjectDetail: React.FC = () => {
             </div>
             {project.followUpHistory.length > 0 ? (
               <div className="space-y-4">
-                {project.followUpHistory.map((followUp) => (
+                {project.followUpHistory.map((followUp: any) => (
                   <div key={followUp.id} className="timeline-item">
                     <div className="timeline-dot" />
                     <div className="pl-2">
@@ -366,23 +419,28 @@ const ProjectDetail: React.FC = () => {
             <button
               onClick={() => {
                 if (newNote.trim() && project) {
-                  const note = addNoteToProject(project.id, {
-                    date: new Date().toISOString().split('T')[0],
-                    content: newNote.trim(),
-                    by: user!.name,
-                  });
-                  if (note) {
-                    addAuditLog({
-                      action: 'created',
-                      entity: 'note',
-                      entityId: note.id,
-                      entityName: project.projectName,
-                      performedBy: { id: user!.id, name: user!.name, role: user!.role },
-                      timestamp: new Date().toISOString(),
-                      description: `Added note: "${newNote.trim().substring(0, 50)}${newNote.length > 50 ? '...' : ''}"`,
-                    });
-                    forceUpdate({});
-                  }
+                  fetch(`${API}/add_note.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                      id: project.id,
+                      content: newNote.trim(),
+                    }),
+                  })
+                    .then((res) => res.json())
+                    .then((resp) => {
+                      if (resp && resp.success) {
+                        setProject((prev: any) => ({
+                          ...prev,
+                          notes: Array.isArray(resp.notes) ? resp.notes : prev.notes,
+                          lastFollowUpDate: resp.lastFollowUpDate || prev.lastFollowUpDate,
+                        }));
+                      } else {
+                        loadProject();
+                      }
+                    })
+                    .catch(() => loadProject());
                 }
                 setNewNote('');
                 setShowNoteModal(false);
@@ -411,23 +469,30 @@ const ProjectDetail: React.FC = () => {
             <button
               onClick={() => {
                 if (newFollowUp.trim() && project) {
-                  const followUp = addFollowUpToProject(project.id, {
-                    date: new Date().toISOString().split('T')[0],
-                    note: newFollowUp.trim(),
-                    by: user!.name,
-                  });
-                  if (followUp) {
-                    addAuditLog({
-                      action: 'created',
-                      entity: 'follow_up',
-                      entityId: followUp.id,
-                      entityName: project.projectName,
-                      performedBy: { id: user!.id, name: user!.name, role: user!.role },
-                      timestamp: new Date().toISOString(),
-                      description: `Added follow-up: "${newFollowUp.trim().substring(0, 50)}${newFollowUp.length > 50 ? '...' : ''}"`,
-                    });
-                    forceUpdate({});
-                  }
+                  fetch(`${API}/add_followup.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                      id: project.id,
+                      note: newFollowUp.trim(),
+                    }),
+                  })
+                    .then((res) => res.json())
+                    .then((resp) => {
+                      if (resp && resp.success) {
+                        setProject((prev: any) => ({
+                          ...prev,
+                          followUpHistory: Array.isArray(resp.followUpHistory)
+                            ? resp.followUpHistory
+                            : prev.followUpHistory,
+                          lastFollowUpDate: resp.lastFollowUpDate || prev.lastFollowUpDate,
+                        }));
+                      } else {
+                        loadProject();
+                      }
+                    })
+                    .catch(() => loadProject());
                 }
                 setNewFollowUp('');
                 setShowFollowUpModal(false);

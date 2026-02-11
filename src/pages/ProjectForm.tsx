@@ -1,29 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { useAuth } from '@/context/AuthContext';
-import { getProjectById, addProject, updateProject } from '@/data/projects';
-import { developers } from '@/data/developers';
-import { addAuditLog } from '@/data/auditLogs';
 import {
-  Project,
   ProjectStatus,
   PendingFrom,
   PaymentStatus,
   Priority,
   RiskLevel,
   ProjectType,
+  Developer,
 } from '@/types/project';
 import { ArrowLeft, Save, Plus, Trash } from 'lucide-react';
+
+const API = 'http://localhost/project-crm/api/projects';
+const DEV_API = 'http://localhost/project-crm/api/developers';
+
+  const FormSection: React.FC<{ title: string; children: React.ReactNode }> = ({
+    title,
+    children,
+  }) => (
+    <div className="bg-card rounded-xl border border-border overflow-hidden mb-6">
+      <div className="px-5 py-4 border-b border-border bg-muted/30">
+        <h3 className="font-semibold text-foreground">{title}</h3>
+      </div>
+      <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">{children}</div>
+    </div>
+  );
 
 const ProjectForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, canEditProjects, canAddProjects, canViewPayments } = useAuth();
+  const { canEditProjects, canAddProjects, canViewPayments } = useAuth();
   const isEdit = Boolean(id);
-  const existingProject = id ? getProjectById(id) : undefined;
 
-  // Form state
+  const [loading, setLoading] = useState(false);
+  const [developers, setDevelopers] = useState<Developer[]>([]);
+
   const [formData, setFormData] = useState({
     projectName: '',
     clientName: '',
@@ -60,37 +73,103 @@ const ProjectForm: React.FC = () => {
     importantLinks: [{ label: '', url: '' }],
   });
 
-  useEffect(() => {
-    if (existingProject) {
-      setFormData({
-        ...existingProject,
-        actualCompletion: existingProject.actualCompletion || '',
-        liveDate: existingProject.liveDate || '',
-        warrantyEndDate: existingProject.warrantyEndDate || '',
-        importantLinks: existingProject.importantLinks.length > 0 
-          ? existingProject.importantLinks 
-          : [{ label: '', url: '' }],
-      });
-    }
-  }, [existingProject]);
-
-  // For edit, only admin can edit. For create, dev/freelancer/admin can create
   const canPerformAction = isEdit ? canEditProjects : canAddProjects;
 
-  if (!canPerformAction) {
-    navigate('/projects');
-    return null;
-  }
+  useEffect(() => {
+    if (!canPerformAction) {
+      navigate('/projects');
+    }
+  }, [canPerformAction, navigate]);
 
+  /* ---------------- FETCH DEVELOPERS ---------------- */
+
+  useEffect(() => {
+    fetch(`${DEV_API}/index.php`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => setDevelopers(Array.isArray(data) ? data : []))
+      .catch(() => setDevelopers([]));
+  }, []);
+
+  /* ---------------- FETCH PROJECT (EDIT) ---------------- */
+
+  useEffect(() => {
+    if (!isEdit || !id) return;
+
+    setLoading(true);
+
+    fetch(`${API}/view.php?id=${id}`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        const allowedStatus: ProjectStatus[] = [
+          'Not Started',
+          'In Progress',
+          'Completed (Dev)',
+          'Completed (Client Approved)',
+        ];
+
+        const allowedPending: PendingFrom[] = ['Client', 'Developer', 'Third Party', 'Done'];
+
+        const allowedPayment: PaymentStatus[] = ['Fully Paid', 'Pending', 'Partial', 'Extra Pending'];
+
+        const allowedPriority: Priority[] = ['Low', 'Medium', 'High', 'Urgent'];
+
+        const allowedRisk: RiskLevel[] = ['Low', 'Medium', 'High'];
+
+        setFormData((prev) => ({
+          ...prev,
+          ...data,
+
+          projectStatus: allowedStatus.includes(data?.projectStatus)
+            ? data.projectStatus
+            : prev.projectStatus,
+
+          developersAssigned: Array.isArray(data?.developersAssigned) ? data.developersAssigned : [],
+
+          pendingFrom: allowedPending.includes(data?.pendingFrom) ? data.pendingFrom : prev.pendingFrom,
+
+          paymentStatus: allowedPayment.includes(data?.paymentStatus)
+            ? data.paymentStatus
+            : prev.paymentStatus,
+
+          priority: allowedPriority.includes(data?.priority) ? data.priority : prev.priority,
+
+          riskLevel: allowedRisk.includes(data?.riskLevel) ? data.riskLevel : prev.riskLevel,
+
+          actualCompletion: data?.actualCompletion || '',
+          liveDate: data?.liveDate || '',
+          warrantyEndDate: data?.warrantyEndDate || '',
+          importantLinks:
+            data?.importantLinks && data.importantLinks.length > 0
+              ? data.importantLinks
+              : [{ label: '', url: '' }],
+        }));
+      })
+      .finally(() => setLoading(false));
+  }, [id, isEdit]);
+
+  /* ---------------- HANDLERS ---------------- */
+
+  // const handleChange = (
+  //   e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  // ) => {
+  //   const { name, value, type } = e.target;
+
+  //   setFormData((prev) => ({
+  //     ...prev,
+  //     [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+  //   }));
+  // };
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
-    }));
-  };
+  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+) => {
+  const { name, value, type, checked } = e.target as HTMLInputElement;
+
+  setFormData((prev) => ({
+    ...prev,
+    [name]: type === 'checkbox' ? checked : value,
+  }));
+};
+
 
   const handleDeveloperChange = (developerId: string) => {
     setFormData((prev) => ({
@@ -124,92 +203,43 @@ const ProjectForm: React.FC = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  /* ---------------- SUBMIT ---------------- */
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const filteredLinks = formData.importantLinks.filter((link) => link.label && link.url);
-    
-    if (isEdit && existingProject) {
-      // Update existing project
-      const updatedProject = updateProject(existingProject.id, {
-        ...formData,
-        actualCompletion: formData.actualCompletion || null,
-        liveDate: formData.liveDate || null,
-        warrantyEndDate: formData.warrantyEndDate || null,
-        importantLinks: filteredLinks,
-      });
 
-      if (updatedProject) {
-        // Create audit log for update
-        addAuditLog({
-          action: 'updated',
-          entity: 'project',
-          entityId: updatedProject.id,
-          entityName: updatedProject.projectName,
-          changes: [
-            { field: 'projectStatus', oldValue: existingProject.projectStatus, newValue: updatedProject.projectStatus },
-            { field: 'currentStage', oldValue: existingProject.currentStage, newValue: updatedProject.currentStage },
-            { field: 'pendingFrom', oldValue: existingProject.pendingFrom, newValue: updatedProject.pendingFrom },
-          ],
-          performedBy: { id: user!.id, name: user!.name, role: user!.role },
-          timestamp: new Date().toISOString(),
-          description: `Updated project "${updatedProject.projectName}"`,
-        });
-      }
-    } else {
-      // Create new project
-      const newProject = addProject({
+    await fetch(isEdit ? `${API}/update.php` : `${API}/create.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        ...(isEdit ? { id } : {}),
         ...formData,
-        actualCompletion: formData.actualCompletion || null,
-        liveDate: formData.liveDate || null,
-        warrantyEndDate: formData.warrantyEndDate || null,
-        importantLinks: filteredLinks,
-        notes: [],
-        followUpHistory: [],
-      });
-
-      // Create audit log for creation
-      addAuditLog({
-        action: 'created',
-        entity: 'project',
-        entityId: newProject.id,
-        entityName: newProject.projectName,
-        performedBy: { id: user!.id, name: user!.name, role: user!.role },
-        timestamp: new Date().toISOString(),
-        description: `Created project "${newProject.projectName}"`,
-      });
-    }
+      }),
+    });
 
     navigate('/projects');
   };
 
-  const FormSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <div className="bg-card rounded-xl border border-border overflow-hidden mb-6">
-      <div className="px-5 py-4 border-b border-border bg-muted/30">
-        <h3 className="font-semibold text-foreground">{title}</h3>
-      </div>
-      <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">{children}</div>
-    </div>
-  );
+  if (loading) {
+    return <div className="p-6 text-muted-foreground">Loading project…</div>;
+  }
+
+  /* ---------------- UI ---------------- */
+
 
   return (
     <div className="min-h-screen">
       <Header
         title={isEdit ? 'Edit Project' : 'Add New Project'}
-        subtitle={isEdit ? existingProject?.projectName : 'Create a new project entry'}
+        subtitle={isEdit ? formData.projectName : 'Create a new project entry'}
       />
 
       <form onSubmit={handleSubmit} className="p-6">
-        {/* Back Button */}
-        <button
-          type="button"
-          onClick={() => navigate('/projects')}
-          className="btn-ghost mb-6"
-        >
+        <button type="button" onClick={() => navigate('/projects')} className="btn-ghost mb-6">
           <ArrowLeft className="w-4 h-4" /> Back to Projects
         </button>
 
-        {/* Core Information */}
         <FormSection title="Core Information">
           <div>
             <label className="form-label">Project Name *</label>
@@ -282,7 +312,6 @@ const ProjectForm: React.FC = () => {
           </div>
         </FormSection>
 
-        {/* Developers */}
         <FormSection title="Developers Assigned">
           <div className="col-span-2">
             <label className="form-label">Select Developers</label>
@@ -312,7 +341,6 @@ const ProjectForm: React.FC = () => {
           </div>
         </FormSection>
 
-        {/* Dates & Timeline */}
         <FormSection title="Dates & Timeline">
           <div>
             <label className="form-label">Started On</label>
@@ -376,7 +404,6 @@ const ProjectForm: React.FC = () => {
           </div>
         </FormSection>
 
-        {/* Status & Responsibility */}
         <FormSection title="Status & Responsibility">
           <div>
             <label className="form-label">Project Status</label>
@@ -476,7 +503,6 @@ const ProjectForm: React.FC = () => {
           </div>
         </FormSection>
 
-        {/* Client Information */}
         <FormSection title="Client Information">
           <div>
             <label className="form-label">Contact Person</label>
@@ -510,7 +536,6 @@ const ProjectForm: React.FC = () => {
           </div>
         </FormSection>
 
-        {/* Effort & Priority */}
         <FormSection title="Effort & Priority">
           <div>
             <label className="form-label">Estimated Effort</label>
@@ -536,12 +561,7 @@ const ProjectForm: React.FC = () => {
           </div>
           <div>
             <label className="form-label">Priority</label>
-            <select
-              name="priority"
-              value={formData.priority}
-              onChange={handleChange}
-              className="form-select"
-            >
+            <select name="priority" value={formData.priority} onChange={handleChange} className="form-select">
               <option value="Low">Low</option>
               <option value="Medium">Medium</option>
               <option value="High">High</option>
@@ -550,12 +570,7 @@ const ProjectForm: React.FC = () => {
           </div>
           <div>
             <label className="form-label">Risk Level</label>
-            <select
-              name="riskLevel"
-              value={formData.riskLevel}
-              onChange={handleChange}
-              className="form-select"
-            >
+            <select name="riskLevel" value={formData.riskLevel} onChange={handleChange} className="form-select">
               <option value="Low">Low</option>
               <option value="Medium">Medium</option>
               <option value="High">High</option>
@@ -563,7 +578,6 @@ const ProjectForm: React.FC = () => {
           </div>
         </FormSection>
 
-        {/* Payment Section */}
         {canViewPayments && (
           <FormSection title="Payment & AMC">
             <div>
@@ -618,7 +632,6 @@ const ProjectForm: React.FC = () => {
           </FormSection>
         )}
 
-        {/* Important Links */}
         <div className="bg-card rounded-xl border border-border overflow-hidden mb-6">
           <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
             <h3 className="font-semibold text-foreground">Important Links</h3>
@@ -661,7 +674,6 @@ const ProjectForm: React.FC = () => {
           </div>
         </div>
 
-        {/* Submit Button */}
         <div className="flex justify-end gap-3">
           <button type="button" onClick={() => navigate('/projects')} className="btn-ghost">
             Cancel
