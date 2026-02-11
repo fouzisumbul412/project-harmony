@@ -11,6 +11,7 @@ import {
   ChevronRight,
   History,
   UserPlus,
+  Columns,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,6 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/projects', label: 'Projects', icon: FolderKanban },
+    { path: '/kanban', label: 'Kanban Board', icon: Columns },
     ...(canAddProjects
       ? [{ path: '/projects/new', label: 'Add Project', icon: Plus }]
       : []),
